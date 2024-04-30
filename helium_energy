@@ -8,15 +8,19 @@
 # ==============================================================================
 ### Outlet pressure defined as hydrostatic
 
+[GlobalParams]
+    gravity = '0 -9.81 0'
+[]
 
 geometry_shift = 0.3
 bed_height = 1.2
 bed_radius = 0.85
 bed_porosity = 0.39
 inlet_temperature = 310 # 40 Celsius
+
 heat_flux_left_wall = ${fparse 140000 / (1.2 * pi * 0.3)}
 
-#heat_flux_left_wall = ${fparse 1 / (1.2 * pi * 0.3)}
+#heat_flux_left_wall = ${fparse 140 / (1.2 * pi * 0.3)}
 
 initial_temperature = ${inlet_temperature} # chosen 30 Celsius
 const_temp_right_wall = 300 # Kelvin 30 Celsius
@@ -35,7 +39,7 @@ pebble_diameter = 0.06
     type = ParsedFunction
     expression = 'if(t < t0, 0.0, if(t <= t0 + t1, c * (t - t0), ${heat_flux_left_wall}))'
     symbol_names = 't0 t1 c'
-    symbol_values = '2 100 ${fparse heat_flux_left_wall/100}'
+    symbol_values = '2 10 ${fparse heat_flux_left_wall/10}'
   []
 []
 
@@ -50,10 +54,10 @@ pebble_diameter = 0.06
   [gen]
     type = CartesianMeshGenerator
     dim = 2
-    dx = '0.05 ${fparse bed_radius-2*.05} 0.05'
-    ix = '20 10 20'
+    dx = '0.05 0.20 ${fparse bed_radius-2*.05 - 2*.20} 0.20 0.05'
+    ix = '35 20 15 20 35'
     dy = '${fparse bed_height/10} ${fparse bed_height*0.9}'
-    iy = '20 60'
+    iy = '30 100'
   []
   [shift]
     type = TransformGenerator
@@ -129,7 +133,7 @@ pebble_diameter = 0.06
   
   [solid_energy_diffusion]
     type = FVDiffusion
-    coeff = k    # the same as the fluid TODO!! change to realisitic 
+    coeff = 'kappa_s'    # the same as the fluid TODO!! change to realisitic 
     variable = T_solid
   []
   
@@ -140,6 +144,16 @@ pebble_diameter = 0.06
     T_fluid = 'T_fluid'
     T_solid = 'T_solid'
     h_solid_fluid = 'alpha'
+  []
+[]
+
+[UserObjects]
+   [wall_dist]
+    type = WallDistanceCylindricalBed
+    outer_radius = ${fparse bed_radius + geometry_shift}
+    top = ${bed_height}
+    inner_radius = ${geometry_shift}
+    axis = 1
   []
 []
 
@@ -157,14 +171,27 @@ pebble_diameter = 0.06
   
   [generic_mat]
     type = ADGenericFunctorMaterial
-    prop_names = 'rho_s  cp_s'
-    prop_values = '2000  2000'
+    prop_names = 'rho_s  cp_s k_s'
+    prop_values = '2000  2000 140'# 140 thermal conducivity of graphite 
   []
   
    [alpha_mat]
-    type = ADGenericFunctorMaterial
-    prop_names = 'alpha'
-    prop_values = '2e4'
+    type = FunctorWakaoPebbleBedHTC
+    porosity = porosity
+    pebble_diameter = ${pebble_diameter}
+  []
+  
+  [kappa_solid]
+    type = FunctorPebbleBedKappaSolid
+    T_solid = T_solid
+    porosity = porosity
+    pebble_diameter = ${pebble_diameter}
+    emissivity = 0.8
+    Youngs_modulus = 9e9
+    Poisson_ratio = 0.136
+    wall_distance = 'wall_dist'
+    solid_conduction = ZBS
+    acceleration = '0 -9.81 0'
   []
 []
 
@@ -183,7 +210,7 @@ pebble_diameter = 0.06
 
 [Executioner]
   type = Transient
-  end_time = 1000
+  end_time = 10000
   [TimeStepper]
     type = IterationAdaptiveDT
     iteration_window = 2
@@ -192,11 +219,16 @@ pebble_diameter = 0.06
     growth_factor = 2
     dt = 1e-4
   []
-  dtmax = 10
+  dtmax = 200
   line_search = l2
   solve_type = 'NEWTON'
   petsc_options_iname = '-pc_type -pc_factor_shift_type'
   petsc_options_value = 'lu NONZERO'
+  
+  #petsc_options_iname = '-pc_type -pc_factor_mat_solver_package'
+  #petsc_options_value = 'lu     superlu_dist'
+  #petsc_options = '-snes_converged_reason'
+  
   nl_abs_tol = 5e-5
 []
 
@@ -221,6 +253,10 @@ pebble_diameter = 0.06
   variable = T_fluid
   functor_diffusivity = k 
   []
+ [solid_temperature]
+    type = ElementAverageValue
+    variable = T_solid
+  []
 []
 
 
@@ -235,4 +271,5 @@ pebble_diameter = 0.06
 
 [Outputs]
   exodus = true
-[] 
+  csv = true
+[]
