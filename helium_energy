@@ -117,6 +117,12 @@ pebble_diameter = 0.06
     #Energy parameters 
     ambient_convection_alpha = 'alpha'
     ambient_temperature = 'T_solid'
+    
+    
+    # friction control parameters
+    friction_types = 'darcy forchheimer'
+    friction_coeffs = 'Darcy_coefficient Forchheimer_coefficient'
+    
   []
 []
 
@@ -195,6 +201,16 @@ pebble_diameter = 0.06
   []
 []
 
+[FunctorMaterials]
+  [drag_pebble_bed]
+    type = FunctorKTADragCoefficients
+    fp = fluid_properties_obj
+    pebble_diameter = ${pebble_diameter}
+    porosity = porosity
+    T_fluid = T_fluid
+    T_solid = T_solid
+  []
+[]
 
 
 [AuxVariables]
